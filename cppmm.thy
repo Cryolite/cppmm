@@ -5,25 +5,27 @@ begin
 
 (* N3132 6.3 Auxiliary definitions *)
 definition relation_over where
-  "relation_over s rel = ((Domain rel <= s) & (Range rel <= s))"
+  "relation_over s rel == ((Domain rel <= s) & (Range rel <= s))"
 
 definition relation_int where
-  "relation_int s rel = rel Int s <*> s"
+  "relation_int s rel == rel Int s <*> s"
 
 definition strict_preorder where
-  "strict_preorder ord = (irrefl ord & trans ord)"
+  "strict_preorder ord == (irrefl ord & trans ord)"
 
 definition total_over where
-  "total_over s ord = total_on s ord"
+  "total_over s ord == total_on s ord"
 
 definition strict_total_order_over where
-  "strict_total_order_over s ord = (strict_preorder ord & total_over s ord)"
+  "strict_total_order_over s ord == (strict_preorder ord & total_over s ord)"
 
 definition adjacent_less_pred where
-  "adjacent_less_pred ord pred x y = ((pred x) & ord (x, y) & ~(EX z. (pred z) & ord (x, z) & ord (z, y)))"
+  "adjacent_less_pred ord pred ==
+     (%(x, y). ((pred x) & ord (x, y) & ~(EX z. (pred z) & ord (x, z) & ord (z, y))))"
 
 definition adjacent_less where
-  "adjacent_less ord x y = (ord (x, y) & ~(EX z. ord (x, z) & ord (z, y)))"
+  "adjacent_less ord ==
+     (%(x, y). (ord (x, y) & ~(EX z. ord (x, z) & ord (z, y))))"
 
 
 (* N3132 6.4 Memory actions: types *)
@@ -337,33 +339,6 @@ definition well_formed_threads where
       actions_respect_location_kinds ce &
       (data_dependency_of ce) <= (sequenced_before_of ce))"
 
-lemma same_thread_equiv: "equiv UNIV same_thread_rel"
-proof
-  have 10: "ALL a : UNIV. thread_id_of a = thread_id_of a" by blast
-  hence 20: "ALL a : UNIV. same_thread a a" by (unfold same_thread_def) blast
-  hence 30: "ALL a : UNIV. same_thread_rel (a, a)" by (unfold same_thread_rel_def) force
-  hence 40: "ALL a : UNIV. (a, a) : same_thread_rel" by (unfold mem_def)
-  have 50: "same_thread_rel <= UNIV" by blast
-  have 60: "UNIV <= UNIV <*> UNIV" by (unfold UNIV_Times_UNIV) blast
-  with 50 have 70: "same_thread_rel <= UNIV <*> UNIV" by blast
-  with 40 show 80: "refl_on UNIV same_thread_rel" by (unfold refl_on_def) blast
-next
-  have 90: "ALL a b. (thread_id_of a = thread_id_of b) --> (thread_id_of b = thread_id_of a)" by force
-  hence 100: "ALL a b. same_thread a b --> same_thread b a" by (unfold same_thread_def) blast
-  hence 110: "ALL a b. same_thread_rel (a, b) --> same_thread_rel (b, a)" by (unfold same_thread_rel_def) force
-  hence 120: "ALL a b. ((a, b) : same_thread_rel) --> ((b, a) : same_thread_rel)" by (unfold mem_def) blast
-  thus 130: "sym same_thread_rel" by (unfold sym_def) blast
-next
-  have 140: "ALL a b c. (thread_id_of a = thread_id_of b) -->
-                        (thread_id_of b = thread_id_of c) --> (thread_id_of a = thread_id_of c)" by force
-  hence 150: "ALL a b c. same_thread a b --> same_thread b c --> same_thread a c" by (unfold same_thread_def) blast
-  hence 160: "ALL a b c. same_thread_rel (a, b) --> same_thread_rel (b, c) --> same_thread_rel (a, c)"
-    by (unfold same_thread_rel_def) force
-  hence 170: "ALL a b c. ((a, b) : same_thread_rel) --> ((b, c) : same_thread_rel) --> ((a, c) : same_thread_rel)"
-    by (unfold mem_def) blast
-  thus 180: "trans same_thread_rel" by (unfold trans_def) blast
-qed
-
 
 (* N3132 6.9 Well-formed reads-from mapping *)
 
@@ -381,33 +356,6 @@ definition well_formed_reads_from_mapping where
              ((is_atomic_store a | is_atomic_rmw a | is_store a)
               & (is_atomic_load b | is_atomic_rmw b | is_load b))))))"
 
-(* `read_by', which is the converse of `reads_from', added by Cryolite *)
-definition read_by_of where "read_by_of ce == converse (reads_from_of ce)"
-
-lemma read_by_is_single_valued: "well_formed_reads_from_mapping ce --> single_valued (read_by_of ce)"
-proof
-  assume 10: "well_formed_reads_from_mapping ce"
-  hence 20: "ALL a. ALL aa. ALL b. reads_from_of ce (a, b) & reads_from_of ce (aa, b) --> (a = aa)"
-    by (unfold well_formed_reads_from_mapping_def) blast
-  have 30: "((reads_from_of ce)^-1)^-1 = reads_from_of ce" by (rule converse_converse)
-  with 20 have 40: "ALL a. ALL aa. ALL b.
-                    (((reads_from_of ce)^-1)^-1) (a, b) & (((reads_from_of ce)^-1)^-1) (aa, b) --> (a = aa)"
-    by (unfold 30) blast
-  hence 60: "ALL a. ALL aa. ALL b.
-             (((a, b) : (((reads_from_of ce)^-1)^-1)) & ((aa, b) : (((reads_from_of ce)^-1)^-1))) --> (a = aa)"
-    by (unfold mem_def) blast
-  hence 60: "ALL a. ALL aa. ALL b.
-             (((b, a) : ((reads_from_of ce)^-1)) & ((b, aa) : ((reads_from_of ce)^-1))) --> (a = aa)"
-    by blast
-  hence 70: "ALL a. ALL aa. ALL b. (((b, a) : (read_by_of ce)) & ((b, aa) : (read_by_of ce))) --> (a = aa)"
-    by (unfold read_by_of_def) blast
-  hence 80: "ALL b. ALL a. ALL aa. (((b, a) : (read_by_of ce)) & ((b, aa) : (read_by_of ce))) --> (a = aa)" by blast
-  hence 90: "ALL b. ALL a. ALL aa. ((b, a) : (read_by_of ce)) --> ((b, aa) : (read_by_of ce)) --> (a = aa)" by blast
-  hence 100: "ALL b. ALL a. ((b, a) : (read_by_of ce)) --> (ALL aa. ((b, aa) : (read_by_of ce)) --> (a = aa))"
-    by blast
-  thus 110: "single_valued (read_by_of ce)" by (unfold single_valued_def) blast
-qed
-
 
 (* N3132 6.10 Consistent locks *)
 definition all_lock_or_unlock_actions_at where
@@ -422,10 +370,10 @@ definition consistent_locks where
         strict_total_order_over lock_unlock_actions lock_order &
         (ALL au : lock_unlock_actions. (is_unlock au -->
            (EX al : lock_unlock_actions.
-              (adjacent_less lock_order al au & same_thread_rel (al, au) & is_lock al)))) &
+              (adjacent_less lock_order (al, au) & same_thread_rel (al, au) & is_lock al)))) &
         (ALL al : lock_unlock_actions. (is_lock al -->
            (ALL au : lock_unlock_actions.
-              (adjacent_less lock_order au al --> is_unlock au)))))))"
+              (adjacent_less lock_order (au, al) --> is_unlock au)))))))"
 
 
 (* N3132 6.11 Release sequences *)
@@ -519,9 +467,9 @@ definition all_sc_actions where
   "all_sc_actions ce == {a : (actions_of ce). (is_seq_cst a | is_lock a | is_unlock a)}"
 
 definition consistent_sc_order where
-  "consistent_sc_order ce as lk sb asw dd rf sc mo ==
+  "consistent_sc_order ce ==
      strict_total_order_over (all_sc_actions ce) (sequential_consistency_of ce) &
-     (relation_int (all_sc_actions as) (happens_before ce)) <= (sequential_consistency_of ce) &
+     (relation_int (all_sc_actions ce) (happens_before ce)) <= (sequential_consistency_of ce) &
      (relation_int (all_sc_actions ce) (modification_order_of ce)) <= (sequential_consistency_of ce)"
 
 
@@ -560,15 +508,14 @@ definition visible_sequence_of_side_effects_tail where
         (ALL a. (modification_order_of ce (vsse_head, a) & modification_order_of ce (a, c))
            --> ~(happens_before ce (b, a)))}"
 
-definition visible_sequences_of_side_effects where
-  "visible_sequences_of_side_effects ce b ==
-     setsum
-       (%vsse_head. if (is_at_atomic_location ce b) then
-                       ({vsse_head} Un
-                          visible_sequence_of_side_effects_tail ce vsse_head b)
-                    else {})
-       {vsse_head : (actions_of ce). visible_side_effect ce (vssed_head, b)}"
-
+definition visible_sequence_of_side_effects where
+  "visible_sequence_of_side_effects ce ==
+     (%(b, vsse).
+      (EX vsse_head.
+       visible_side_effect ce (vsse_head, b) &
+       (if (is_at_atomic_location ce b) then
+           (vsse = ({vsse_head} Un visible_sequence_of_side_effects_tail ce vsse_head b))
+        else (vsse = {}))))"
 
 (* N3132 6.19 Consistent reads-from mapping *)
 definition consistent_reads_from_mapping where
@@ -576,36 +523,216 @@ definition consistent_reads_from_mapping where
      ((ALL b. (is_read b & is_at_non_atomic_location ce b) -->
               (if (EX avse. visible_side_effect ce (avse, b))
                then (EX avse. visible_side_effect ce (avse, b) & reads_from_of ce (avse, b))
-               else ~(EX a. reads_from_of ce (a, b)))) &
+               else ~(EX a. reads_from_of ce (a, b))))                      &
 
       (ALL b. (is_read b & is_at_atomic_location ce b) -->
-              (if (EX (bb, vsse) : (visible_sequences_of_side_effects ce). (bb = b))
-               then (EX (bb, vsse) : (visible_sequences_of_side_effects ce).
-                     (bb = b) & (EX c : vsse. reads_from_of ce (c, b)))
-               else ~(EX a. reads_from_of ce (a, b))))   )"(* &
+              (if (EX vsse. visible_sequence_of_side_effects ce (b, vsse))
+               then (EX vsse. visible_sequence_of_side_effects ce (b, vsse) &
+                     (EX c : vsse. reads_from_of ce (c, b)))
+               else ~(EX a. reads_from_of ce (a, b))))                      &
 
       (ALL (x, a) : (reads_from_of ce).
          ALL (y, b) : (reads_from_of ce).
            (happens_before ce (a, b) &
               same_location_rel (a, b) & is_at_atomic_location ce b)
-                --> ((x = y) | modification_order_of ce (x, y))) &
+                --> ((x = y) | modification_order_of ce (x, y)))            &
 
       (ALL (a, b) : (happens_before ce).
          ALL c.
            (reads_from_of ce (c, b) &
               is_write a & same_location_rel (a, b) & is_at_atomic_location ce b)
-                --> ((c = a) | modification_order_of ce (a, c))) &
+                --> ((c = a) | modification_order_of ce (a, c)))            &
 
       (ALL (a, b) : (happens_before ce).
          ALL c.
            (reads_from_of ce (c, a) &
               is_write b & same_location_rel (a, b) & is_at_atomic_location ce a)
-                --> modification_order_of ce (c, b)) &
+                --> modification_order_of ce (c, b))                        &
 
       (ALL (a, b) : (reads_from_of ce). is_atomic_rmw b
-         --> modification_order_of (a, b)) &
+         --> modification_order_of ce (a, b))                               &
 
       (ALL (a, b) : (reads_from_of ce). is_seq_cst b
-         --> (~(is_seq_cst a))
-             | (relation_int (%c. is_write c & same_location_rel (b, c)) sequential_consistency_of ce (a, b)))   )"
-*)
+         --> ((~(is_seq_cst a))
+              | (adjacent_less_pred (sequential_consistency_of ce) (%c. is_write c & same_location_rel (b, c)) (a, b)))) &
+
+      (ALL a. ALL (x, b) : sequenced_before_of ce. ALL y.
+         (is_fence x & is_seq_cst x & is_atomic_action b &
+            is_write a & same_location_rel (a, b) &
+            adjacent_less (sequenced_before_of ce) (a, x) & adjacent_less (reads_from_of ce) (y, b))
+          --> ((y = a) | modification_order_of ce (a, y)))                    &
+
+      (ALL (a, x) : (sequenced_before_of ce). ALL (y, b) : (reads_from_of ce).
+         (is_atomic_action a & is_fence x & is_seq_cst x &
+            is_write a & same_location_rel (a, b) &
+            sequenced_before_of ce (x, b) & is_at_atomic_location ce b)
+          --> ((y = a) | modification_order_of ce (a, y)))                    &
+
+      (ALL (a, x) : (sequenced_before_of ce). ALL (y, b) : (sequenced_before_of ce). ALL z.
+         (is_atomic_action a & is_fence x & is_seq_cst x &
+            is_write a & is_fence y & is_seq_cst y &
+            is_atomic_action b &
+            sequential_consistency_of ce (x, y) & reads_from_of ce (z, b))
+          --> ((z = a) | modification_order_of ce (a, z))))"
+
+
+(* N3132 6.20 Consistent control dependency (unused at present) *)
+definition all_data_dependency where
+  "all_data_dependency ce ==
+     ((reads_from_of ce Un carries_a_dependency_to ce)^*)"
+
+definition consistent_control_dependency where
+  "consistent_control_dependency ce ==
+     irrefl ((control_dependency_of ce Un all_data_dependency ce)^*)"
+
+
+(* N3132 6.21 Consistent executions *)
+definition consistent_execution where
+  "consistent_execution ce ==
+     well_formed_threads ce                    &
+     well_formed_reads_from_mapping ce         &
+     consistent_locks ce                       &
+     consistent_inter_thread_happens_before ce &
+     consistent_sc_order ce                    &
+     consistent_modification_order ce          &
+     consistent_reads_from_mapping ce"
+
+
+(* N3132 6.22 Sources of undefined behavior *)
+definition indeterminate_reads where
+  "indeterminate_reads ce ==
+     {b. is_read b & ~(EX a. reads_from_of ce (a, b))}"
+
+definition unsequenced_races where
+  "unsequenced_races ce == {(a, b).
+      is_load_or_store a & is_load_or_store b &
+      (a ~= b) & same_location_rel (a, b) & (is_write a | is_write b) &
+      same_thread_rel (a, b) &
+      ~((sequenced_before_of ce (a, b)) | (sequenced_before_of ce (b, a)))}"
+
+definition data_races where
+  "data_races ce == {(a, b).
+      (a ~= b) & same_location_rel (a, b) & (is_write a | is_write b) &
+      ~same_thread_rel (a, b) &
+      ~(is_atomic_action a & is_atomic_action b) &
+      ~(happens_before ce (a, b) | happens_before ce (b, a))}"
+
+
+(* N3132 6.23 C++ memory model *)
+definition cpp_memory_model where
+  "cpp_memory_model ts as lt sb asw dd cd ==
+   if (EX ce : {x. (x : consistent_execution) &
+                   (threads_of x = ts) &
+                   (actions_of x = as) &
+                   (location_typing_of x = lt) &
+                   (sequenced_before_of x = sb) &
+                   (additional_synchronized_with_of x = asw) &
+                   (data_dependency_of x = dd) &
+                   (control_dependency_of x = cd)}.
+         (indeterminate_reads ce ~= {}) |
+         (unsequenced_races ce ~= {}) |
+         (data_races ce ~= {}))
+   then None
+   else Some {ce. consistent_execution ce}"
+
+
+
+lemma same_thread_equiv: "equiv UNIV same_thread_rel"
+proof
+  have 10: "ALL a : UNIV. thread_id_of a = thread_id_of a" by blast
+  hence 20: "ALL a : UNIV. same_thread a a" by (unfold same_thread_def) blast
+  hence 30: "ALL a : UNIV. same_thread_rel (a, a)" by (unfold same_thread_rel_def) force
+  hence 40: "ALL a : UNIV. (a, a) : same_thread_rel" by (unfold mem_def)
+  have 50: "same_thread_rel <= UNIV" by blast
+  have 60: "UNIV <= UNIV <*> UNIV" by (unfold UNIV_Times_UNIV) blast
+  with 50 have 70: "same_thread_rel <= UNIV <*> UNIV" by blast
+  with 40 show 80: "refl_on UNIV same_thread_rel" by (unfold refl_on_def) blast
+next
+  have 90: "ALL a b. (thread_id_of a = thread_id_of b) --> (thread_id_of b = thread_id_of a)" by force
+  hence 100: "ALL a b. same_thread a b --> same_thread b a" by (unfold same_thread_def) blast
+  hence 110: "ALL a b. same_thread_rel (a, b) --> same_thread_rel (b, a)" by (unfold same_thread_rel_def) force
+  hence 120: "ALL a b. ((a, b) : same_thread_rel) --> ((b, a) : same_thread_rel)" by (unfold mem_def) blast
+  thus 130: "sym same_thread_rel" by (unfold sym_def) blast
+next
+  have 140: "ALL a b c. (thread_id_of a = thread_id_of b) -->
+                        (thread_id_of b = thread_id_of c) --> (thread_id_of a = thread_id_of c)" by force
+  hence 150: "ALL a b c. same_thread a b --> same_thread b c --> same_thread a c" by (unfold same_thread_def) blast
+  hence 160: "ALL a b c. same_thread_rel (a, b) --> same_thread_rel (b, c) --> same_thread_rel (a, c)"
+    by (unfold same_thread_rel_def) force
+  hence 170: "ALL a b c. ((a, b) : same_thread_rel) --> ((b, c) : same_thread_rel) --> ((a, c) : same_thread_rel)"
+    by (unfold mem_def) blast
+  thus 180: "trans same_thread_rel" by (unfold trans_def) blast
+qed
+
+
+lemma same_location_equiv: "equiv UNIV same_location_rel"
+proof
+  have 10: "ALL a : UNIV. location_of a = location_of a" by blast
+  hence 20: "ALL a : UNIV. same_location a a" by (unfold same_location_def) blast
+  hence 30: "ALL a : UNIV. same_location_rel (a, a)" by (unfold same_location_rel_def) force
+  hence 40: "ALL a : UNIV. (a, a) : same_location_rel" by (unfold mem_def)
+  have 50: "same_location_rel <= UNIV" by blast
+  have 60: "UNIV <= UNIV <*> UNIV" by (unfold UNIV_Times_UNIV) blast
+  with 50 have 70: "same_location_rel <= UNIV <*> UNIV" by blast
+  with 40 show 80: "refl_on UNIV same_location_rel" by (unfold refl_on_def) blast
+next
+  have 90: "ALL a b. (location_of a = location_of b) --> (location_of b = location_of a)" by force
+  hence 100: "ALL a b. same_location a b --> same_location b a" by (unfold same_location_def) blast
+  hence 110: "ALL a b. same_location_rel (a, b) --> same_location_rel (b, a)" by (unfold same_location_rel_def) force
+  hence 120: "ALL a b. ((a, b) : same_location_rel) --> ((b, a) : same_location_rel)" by (unfold mem_def) blast
+  thus 130: "sym same_location_rel" by (unfold sym_def) blast
+next
+  have 140: "ALL a b c. (location_of a = location_of b) -->
+                        (location_of b = location_of c) --> (location_of a = location_of c)" by force
+  hence 150: "ALL a b c. same_location a b --> same_location b c --> same_location a c" by (unfold same_location_def) blast
+  hence 160: "ALL a b c. same_location_rel (a, b) --> same_location_rel (b, c) --> same_location_rel (a, c)"
+    by (unfold same_location_rel_def) force
+  hence 170: "ALL a b c. ((a, b) : same_location_rel) --> ((b, c) : same_location_rel) --> ((a, c) : same_location_rel)"
+    by (unfold mem_def) blast
+  thus 180: "trans same_location_rel" by (unfold trans_def) blast
+qed
+
+
+(* `read_by', which is the converse of `reads_from', added by Cryolite *)
+definition read_by_of where "read_by_of ce == converse (reads_from_of ce)"
+
+lemma read_by_is_single_valued: "well_formed_reads_from_mapping ce --> single_valued (read_by_of ce)"
+proof
+  assume 10: "well_formed_reads_from_mapping ce"
+  hence 20: "ALL a. ALL aa. ALL b. reads_from_of ce (a, b) & reads_from_of ce (aa, b) --> (a = aa)"
+    by (unfold well_formed_reads_from_mapping_def) blast
+  have 30: "((reads_from_of ce)^-1)^-1 = reads_from_of ce" by (rule converse_converse)
+  with 20 have 40: "ALL a. ALL aa. ALL b.
+                    (((reads_from_of ce)^-1)^-1) (a, b) & (((reads_from_of ce)^-1)^-1) (aa, b) --> (a = aa)"
+    by (unfold 30) blast
+  hence 60: "ALL a. ALL aa. ALL b.
+             (((a, b) : (((reads_from_of ce)^-1)^-1)) & ((aa, b) : (((reads_from_of ce)^-1)^-1))) --> (a = aa)"
+    by (unfold mem_def) blast
+  hence 60: "ALL a. ALL aa. ALL b.
+             (((b, a) : ((reads_from_of ce)^-1)) & ((b, aa) : ((reads_from_of ce)^-1))) --> (a = aa)"
+    by blast
+  hence 70: "ALL a. ALL aa. ALL b. (((b, a) : (read_by_of ce)) & ((b, aa) : (read_by_of ce))) --> (a = aa)"
+    by (unfold read_by_of_def) blast
+  hence 80: "ALL b. ALL a. ALL aa. (((b, a) : (read_by_of ce)) & ((b, aa) : (read_by_of ce))) --> (a = aa)" by blast
+  hence 90: "ALL b. ALL a. ALL aa. ((b, a) : (read_by_of ce)) --> ((b, aa) : (read_by_of ce)) --> (a = aa)" by blast
+  hence 100: "ALL b. ALL a. ((b, a) : (read_by_of ce)) --> (ALL aa. ((b, aa) : (read_by_of ce)) --> (a = aa))"
+    by blast
+  thus 110: "single_valued (read_by_of ce)" by (unfold single_valued_def) blast
+qed
+
+
+lemma visible_side_effect_is_unique:
+  "consistent_execution ce --> single_valued (converse (visible_side_effect ce))"
+proof
+  assume 10: "consistent_execution ce"
+  hence 20: "well_formed_reads_from_mapping ce"
+    by (unfold consistent_execution_def) blast
+  have 30: "well_formed_reads_from_mapping ce --> single_valued (read_by_of ce)" by (rule read_by_is_single_valued)
+  with 20 have 40: "single_valued (read_by_of ce)" by blast
+  from 20 have 50: "ALL (a, b) : (reads_from_of ce). same_location_rel (a, b)"
+    by (unfold well_formed_reads_from_mapping_def) blast
+  hence 60: "ALL ab : (reads_from_of ce). same_location_rel ab" by force
+  hence 70: "ALL ab. ab : (reads_from_of ce) --> same_location_rel ab" by blast
+  hence 80: "ALL x. x : (reads_from_of ce) --> x : same_location_rel" by (unfold mem_def)
+  hence 90: "reads_from_of ce <= same_location_rel" by blast
+  
