@@ -637,7 +637,9 @@ definition cpp_memory_model where
 
 
 
-lemma same_thread_equiv: "equiv UNIV same_thread_rel"
+
+
+lemma same_thread_is_equiv: "equiv UNIV same_thread_rel"
 proof
   have 10: "ALL a : UNIV. thread_id_of a = thread_id_of a" by blast
   hence 20: "ALL a : UNIV. same_thread a a" by (unfold same_thread_def) blast
@@ -665,7 +667,7 @@ next
 qed
 
 
-lemma same_location_equiv: "equiv UNIV same_location_rel"
+lemma same_location_is_equiv: "equiv UNIV same_location_rel"
 proof
   have 10: "ALL a : UNIV. location_of a = location_of a" by blast
   hence 20: "ALL a : UNIV. same_location a a" by (unfold same_location_def) blast
@@ -693,10 +695,47 @@ next
 qed
 
 
-(* `read_by', which is the converse of `reads_from', added by Cryolite *)
-definition read_by_of where "read_by_of ce == converse (reads_from_of ce)"
 
-lemma read_by_is_single_valued: "well_formed_reads_from_mapping ce --> single_valued (read_by_of ce)"
+lemma reads_from_implies_same_location:
+  "consistent_execution ce --> reads_from_of ce <= same_location_rel"
+proof
+  assume 10: "consistent_execution ce"
+  hence 20: "well_formed_reads_from_mapping ce" by (unfold consistent_execution_def) blast
+  hence 30: "ALL (a, b) : reads_from_of ce. same_location_rel (a, b)"
+    by (unfold well_formed_reads_from_mapping_def) blast
+  hence 40: "ALL x : reads_from_of ce. same_location_rel x" by force
+  hence 50: "ALL x : reads_from_of ce. (x : same_location_rel)" by (unfold mem_def)
+  thus 60: "reads_from_of ce <= same_location_rel" by blast
+qed
+
+
+
+(* `read_by', which is the converse of `reads_from', added by Cryolite *)
+definition read_by where "read_by ce == converse (reads_from_of ce)"
+
+lemma read_by_implies_same_location:
+  "consistent_execution ce --> read_by ce <= same_location_rel"
+proof
+  assume 10: "consistent_execution ce"
+  have 20: "consistent_execution ce --> reads_from_of ce <= same_location_rel"
+    by (rule reads_from_implies_same_location)
+  with 10 have 30: "reads_from_of ce <= same_location_rel" by blast
+  hence 40: "ALL x. (x : reads_from_of ce) --> (x : same_location_rel)" by blast
+  hence 50: "ALL x y. ((x, y) : reads_from_of ce) --> ((x, y) : same_location_rel)" by blast
+  hence 60: "ALL x y. ((x, y) : ((reads_from_of ce)^-1)^-1) --> ((x, y) : same_location_rel)" by blast
+  hence 70: "ALL x y. ((y, x) : ((reads_from_of ce)^-1)) --> ((x, y) : same_location_rel)" by blast
+  hence 80: "ALL x y. ((y, x) : read_by ce) --> ((x, y) : same_location_rel)"
+    by (unfold read_by_def)
+  have 100: "equiv UNIV same_location_rel" by (rule same_location_is_equiv)
+  hence 110: "sym same_location_rel" by (unfold equiv_def) blast
+  hence 120: "ALL x y. (x, y) : same_location_rel --> (y, x) : same_location_rel" by (unfold sym_def) blast
+  with 80 have 110: "ALL x y. ((y, x) : read_by ce) --> ((y, x) : same_location_rel)" by blast
+  hence 120: "ALL x. (x : read_by ce) --> (x : same_location_rel)" by force
+  thus 130: "read_by ce <= same_location_rel" by blast
+qed
+
+lemma read_by_is_single_valued:
+  "well_formed_reads_from_mapping ce --> single_valued (read_by ce)"
 proof
   assume 10: "well_formed_reads_from_mapping ce"
   hence 20: "ALL a. ALL aa. ALL b. reads_from_of ce (a, b) & reads_from_of ce (aa, b) --> (a = aa)"
@@ -711,28 +750,49 @@ proof
   hence 60: "ALL a. ALL aa. ALL b.
              (((b, a) : ((reads_from_of ce)^-1)) & ((b, aa) : ((reads_from_of ce)^-1))) --> (a = aa)"
     by blast
-  hence 70: "ALL a. ALL aa. ALL b. (((b, a) : (read_by_of ce)) & ((b, aa) : (read_by_of ce))) --> (a = aa)"
-    by (unfold read_by_of_def) blast
-  hence 80: "ALL b. ALL a. ALL aa. (((b, a) : (read_by_of ce)) & ((b, aa) : (read_by_of ce))) --> (a = aa)" by blast
-  hence 90: "ALL b. ALL a. ALL aa. ((b, a) : (read_by_of ce)) --> ((b, aa) : (read_by_of ce)) --> (a = aa)" by blast
-  hence 100: "ALL b. ALL a. ((b, a) : (read_by_of ce)) --> (ALL aa. ((b, aa) : (read_by_of ce)) --> (a = aa))"
+  hence 70: "ALL a. ALL aa. ALL b. (((b, a) : (read_by ce)) & ((b, aa) : (read_by ce))) --> (a = aa)"
+    by (unfold read_by_def) blast
+  hence 80: "ALL b. ALL a. ALL aa. (((b, a) : (read_by ce)) & ((b, aa) : (read_by ce))) --> (a = aa)" by blast
+  hence 90: "ALL b. ALL a. ALL aa. ((b, a) : (read_by ce)) --> ((b, aa) : (read_by ce)) --> (a = aa)" by blast
+  hence 100: "ALL b. ALL a. ((b, a) : (read_by ce)) --> (ALL aa. ((b, aa) : (read_by ce)) --> (a = aa))"
     by blast
-  thus 110: "single_valued (read_by_of ce)" by (unfold single_valued_def) blast
+  thus 110: "single_valued (read_by ce)" by (unfold single_valued_def) blast
 qed
 
+lemma casewise_proof_on_strict_total_order_2:
+  "total_over S R -->
+     (ALL a : S. P a a) -->
+     (ALL a : S. ALL b : S. (((a, b) : R) --> P a b)) -->
+     (ALL a : S. ALL b : S. (((b, a) : R) --> P a b)) -->
+     (ALL a : S. ALL b : S. P a b)"
+proof
+  assume 10: "total_over S R"
+  hence 12: "total_on S R" by (unfold total_over_def)
+  hence 14: "ALL a : S. ALL b : S. a ~= b --> (a, b) : R | (b, a) : R" by (unfold total_on_def)
+  show "(ALL a : S. P a a) -->
+          (ALL a : S. ALL b : S. (a, b) : R --> P a b) -->
+          (ALL a : S. ALL b : S. (b, a) : R --> P a b) -->
+          (ALL a : S. ALL b : S. P a b)"
+  proof
+    assume 20: "ALL a : S. P a a"
+    show "(ALL a : S. ALL b : S. (a, b) : R --> P a b) -->
+            (ALL a : S. ALL b : S. (b, a) : R --> P a b) -->
+            (ALL a : S. ALL b : S. P a b)"
+    proof
+      assume 30: "ALL a : S. ALL b : S. (a, b) : R --> P a b"
+      show "(ALL a : S. ALL b : S. (b, a) : R --> P a b) --> (ALL a : S. ALL b : S. P a b)"
+      proof
+        assume 40: "ALL a : S. ALL b : S. (b, a) : R --> P a b"
+        show "ALL a : S. ALL b : S. P a b"
+        proof (case_tac "a = b")
+qed
 
 lemma visible_side_effect_is_unique:
   "consistent_execution ce --> single_valued (converse (visible_side_effect ce))"
 proof
   assume 10: "consistent_execution ce"
-  hence 20: "well_formed_reads_from_mapping ce"
-    by (unfold consistent_execution_def) blast
-  have 30: "well_formed_reads_from_mapping ce --> single_valued (read_by_of ce)" by (rule read_by_is_single_valued)
-  with 20 have 40: "single_valued (read_by_of ce)" by blast
-  from 20 have 50: "ALL (a, b) : (reads_from_of ce). same_location_rel (a, b)"
-    by (unfold well_formed_reads_from_mapping_def) blast
-  hence 60: "ALL ab : (reads_from_of ce). same_location_rel ab" by force
-  hence 70: "ALL ab. ab : (reads_from_of ce) --> same_location_rel ab" by blast
-  hence 80: "ALL x. x : (reads_from_of ce) --> x : same_location_rel" by (unfold mem_def)
-  hence 90: "reads_from_of ce <= same_location_rel" by blast
-  
+  have 20: "consistent_execution ce --> read_by ce <= same_location_rel"
+    by (rule read_by_implies_same_location)
+  with 10 have 30: "read_by ce <= same_location_rel" by blast
+  have 40: "modification_order ce <= same_location_rel"
+qed
